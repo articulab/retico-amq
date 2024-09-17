@@ -1,14 +1,8 @@
-# retico-zmq
-ReTiCo module for ZeroMQ
+# retico-amq
 
+ReTiCo module for ActiveMQ
 
 ### Installation
-
-Ubuntu
- 
-```
-pip install pyzmq
-```
 
 ### Example
 

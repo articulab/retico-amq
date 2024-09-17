@@ -1,7 +1,7 @@
 """
 Setup script.
 
-Use this script to install the ZeroMQ reader/writer incremental modules for the retico framework.
+Use this script to install the ActiveMQ reader/writer incremental modules for the retico framework.
 Usage:
     $ python3 setup.py install
 The run the simulation:
@@ -13,18 +13,18 @@ try:
 except ImportError:
     from distutils.core import setup
 
-import retico_zmq
+import retico_amq
 
 config = {
-    "description": "The ZeroMQ reader/writer incremental modules for the retico framework",
-    "author": "Casey Kennington",
-    "url": "https://github.com/retico-team/retico-zmq",
-    "download_url": "https://github.com/retico-team/retico-zmq",
-    "author_email": "caseykennington@boisestate.edu",
-    "version": retico_zmq.__version__,
-    "install_requires": ["retico-core~=0.2.0", "zmq"],
+    "description": "The ActiveMQ reader/writer incremental modules for the retico framework",
+    "author": "Marius Le Chapelier",
+    "url": "https://github.com/articulab/retico-amq",
+    "download_url": "https://github.com/articulab/retico-amq",
+    "author_email": "mariuslechapelier@gmail.com",
+    "version": retico_amq.__version__,
+    "install_requires": ["retico-core~=0.2.0"],
     "packages": find_packages(),
-    "name": "retico-zmq",
+    "name": "retico-amq",
 }
 
 setup(**config)
