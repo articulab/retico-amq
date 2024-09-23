@@ -143,7 +143,11 @@ class AMQReader(retico_core.AbstractProducingModule):
                     # try to parse the message to create a dict (it has to be a structured message JSON), and put it in the IU's init parameters.
                     # create the decorated IU (cannot use classical create_iu from AbstractModule)
                     msg_json = json.loads(message)
-                    self.terminal_logger.info("new iu json", msg_json=msg_json)
+                    iu_type = self.target_iu_types[destination]
+                    init_args = iu_type.__init__.__code__.co_varnames
+                    common_args = msg_json.keys() & init_args
+                    deleted_args = msg_json.keys() - init_args
+                    msg_json = {key: msg_json[key] for key in common_args}
                     output_iu = self.target_iu_types[destination](
                         creator=self,
                         iuid=f"{hash(self)}:{self.iu_counter}",
@@ -151,9 +155,11 @@ class AMQReader(retico_core.AbstractProducingModule):
                         grounded_in=None,
                         **msg_json,
                     )
-                except Exception:
+                except Exception as e:
                     # if message not parsable as a structured message (JSON), then put it as the IU's payload.
                     # create the decorated IU (cannot use classical create_iu from AbstractModule)
+                    self.terminal_logger.error("error")
+                    print(e.with_traceback())
                     output_iu = self.target_iu_types[destination](
                         creator=self,
                         iuid=f"{hash(self)}:{self.iu_counter}",
@@ -162,14 +168,6 @@ class AMQReader(retico_core.AbstractProducingModule):
                         # payload=message,
                     )
 
-                # create the decorated IU (cannot use classical create_iu from AbstractModule)
-                # output_iu = self.target_iu_types[destination](
-                #     creator=self,
-                #     iuid=f"{hash(self)}:{self.iu_counter}",
-                #     previous_iu=self._previous_iu,
-                #     grounded_in=None,
-                # )
-                # output_iu.payload = message
                 self.iu_counter += 1
                 self._previous_iu = output_iu
                 update_message = retico_core.UpdateMessage()
@@ -237,12 +235,10 @@ class AMQWriter(retico_core.AbstractModule):
                 "committed",
                 "revoked",
                 "meta_data",
+                "iuid",
             }
             iu_info = decorated_iu.__dict__
-            print("KEYS = ", iu_info.keys())
-            print("DICT = ", iu_info)
             iu_info = {key: iu_info[key] for key in iu_info.keys() - black_listed_keys}
-            print("DICT AFTER = ", iu_info)
             body = json.dumps(iu_info)
             # if you have a to_amq() function in IU class
             # body = decorated_iu.to_amq()
@@ -250,12 +246,6 @@ class AMQWriter(retico_core.AbstractModule):
             # body = decorated_iu.payload
 
             # send the message to the correct destination
-            print(
-                f"sent {body},  to : {amq_iu.destination} , with headers : {amq_iu.headers}"
-            )
-            # self.terminal_logger.info(
-            #     f"sent {body},  to : {amq_iu.destination} , with headers : {amq_iu.headers}"
-            # )
             self.terminal_logger.info(
                 "sent", destination=amq_iu.destination, headers=amq_iu.headers
             )
