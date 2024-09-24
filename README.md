@@ -4,6 +4,10 @@ ReTiCo module for ActiveMQ
 
 ### Installation
 
+```bash
+pip install retico-amq
+```
+
 ### Example
 
 ```python
