@@ -38,12 +38,14 @@ a.subscribe(writer)
 ##### Case 2 : You want to use an already implemented module that doesn't output AMQIU
 
 You have to create a bridge module that takes your module IUs and enhanced them with headers and destination.
+A General Bridge module is already implemented, it needs headers and destination parameters at initialization, and enhance the received IncrementalUnits by creating a decorating AMQIU around it with the headers and destination parameters.
+If you want to do some treatement before sending the IUs to AMQWriter (such as filter the parameter sent), you can create your own AMQBridge module.
 
 ```python
 # the IP of the writer should be the originating PC's IP, the port would be ActiveMQ's
 writer = AMQWriter(ip=ip, port='61613')
 b = module_that_doesnt_output_amqIU()
-c = bridge_between_retico_and_amq(headers={"my_header":"my_header_value"}, destination="/topic/my_topic")
+c = AMQBridge(headers={"my_header":"my_header_value"}, destination="/topic/my_topic")
 
 b.subscribe(c)
 c.subscribe(writer)

@@ -147,6 +147,8 @@ class AMQReader(retico_core.AbstractProducingModule):
                     init_args = iu_type.__init__.__code__.co_varnames
                     common_args = msg_json.keys() & init_args
                     deleted_args = msg_json.keys() - init_args
+                    print(common_args)
+                    print(deleted_args)
                     msg_json = {key: msg_json[key] for key in common_args}
                     output_iu = self.target_iu_types[destination](
                         creator=self,
@@ -259,15 +261,15 @@ class AMQWriter(retico_core.AbstractModule):
         return None
 
 
-class AMQBridgeTest(retico_core.AbstractModule):
+class AMQBridge(retico_core.AbstractModule):
 
     @staticmethod
     def name():
-        return "ActiveMQ Bridge Test Module"
+        return "ActiveMQ Bridge Module"
 
     @staticmethod
     def description():
-        return "A Module providing a test module that bridges between textIU to AMQIU"
+        return "A Module providing a module that bridges between retico and ActiveMQ by creating AMQIU from IncrementalUnit"
 
     @staticmethod
     def output_iu():
@@ -305,114 +307,108 @@ class AMQBridgeTest(retico_core.AbstractModule):
                 um.add_iu(output_iu, ut)
             else:
                 self.terminal_logger.warning("IU IS FINAL")
-            #     # create AMQIU
-            #     output_iu = self.create_iu(
-            #         decorated_iu=input_iu,
-            #         destination=self.destination,
-            #         headers=self.headers,
-            #     )
-            #     um.add_iu(output_iu, ut)
 
         return um
 
 
 ## The retico-zmq implementation method
-class WriterSingleton:
-    __instance = None
 
-    @staticmethod
-    def getInstance():
-        """Static access method."""
-        return WriterSingleton.__instance
+# class WriterSingleton:
+#     __instance = None
 
-    def __init__(self, ip, port, kwargs):
-        """Virtually private constructor."""
-        if WriterSingleton.__instance == None:
-            super().__init__(**kwargs)
-            hosts = [(ip, port)]
-            self.conn = stomp.Connection(
-                host_and_ports=hosts, auto_content_length=False
-            )
-            self.conn.connect("admin", "admin", wait=True)
-            self.queue = deque()
-            WriterSingleton.__instance = self
-            t = threading.Thread(target=self.run_writer)
-            t.start()
+#     @staticmethod
+#     def getInstance():
+#         """Static access method."""
+#         return WriterSingleton.__instance
 
-    def send(self, data):
-        self.queue.append(data)
+#     def __init__(self, ip, port, kwargs):
+#         """Virtually private constructor."""
+#         if WriterSingleton.__instance == None:
+#             super().__init__(**kwargs)
+#             hosts = [(ip, port)]
+#             self.conn = stomp.Connection(
+#                 host_and_ports=hosts, auto_content_length=False
+#             )
+#             self.conn.connect("admin", "admin", wait=True)
+#             self.queue = deque()
+#             WriterSingleton.__instance = self
+#             t = threading.Thread(target=self.run_writer)
+#             t.start()
 
-    def run_writer(self):
-        while True:
-            if len(self.queue) == 0:
-                time.sleep(0.1)
-                continue
-            data = self.queue.popleft()
-            body, destination, headers = data
-            print(f"sent {body},  to : {destination} , with headers : {headers}")
-            self.conn.send(
-                body=body,
-                destination=destination,
-                headers=headers,
-                persistent=True,
-            )
+#     def send(self, data):
+#         self.queue.append(data)
+
+#     def run_writer(self):
+#         while True:
+#             if len(self.queue) == 0:
+#                 time.sleep(0.1)
+#                 continue
+#             data = self.queue.popleft()
+#             body, destination, headers = data
+#             print(f"sent {body},  to : {destination} , with headers : {headers}")
+#             self.conn.send(
+#                 body=body,
+#                 destination=destination,
+#                 headers=headers,
+#                 persistent=True,
+#             )
 
 
-class ActiveMQWriter(retico_core.AbstractModule):
-    """A ActiveMQ Writer Module
+# class ActiveMQWriter(retico_core.AbstractModule):
+#     """A ActiveMQ Writer Module
 
-    Note: If you are using this to pass IU payloads to PSI, make sure you're passing JSON-formatable stuff (i.e., dicts not tuples)
+#     Note: If you are using this to pass IU payloads to PSI, make sure you're passing JSON-formatable stuff (i.e., dicts not tuples)
 
-    Attributes:
-    topic (str): topic/scope that this writes to
-    """
+#     Attributes:
+#     topic (str): topic/scope that this writes to
+#     """
 
-    @staticmethod
-    def name():
-        return "ActiveMQ Writer Module"
+#     @staticmethod
+#     def name():
+#         return "ActiveMQ Writer Module"
 
-    @staticmethod
-    def description():
-        return "A Module providing writing onto a ActiveMQ bus"
+#     @staticmethod
+#     def description():
+#         return "A Module providing writing onto a ActiveMQ bus"
 
-    @staticmethod
-    def output_iu():
-        return None
+#     @staticmethod
+#     def output_iu():
+#         return None
 
-    @staticmethod
-    def input_ius():
-        return [retico_core.IncrementalUnit]
+#     @staticmethod
+#     def input_ius():
+#         return [retico_core.IncrementalUnit]
 
-    def __init__(self, destination, **kwargs):
-        """Initializes the ActiveMQWriter.
+#     def __init__(self, destination, **kwargs):
+#         """Initializes the ActiveMQWriter.
 
-        Args: destination(str): the destination where the information will be read.
+#         Args: destination(str): the destination where the information will be read.
 
-        """
-        super().__init__(**kwargs)
-        self.destination = destination
-        self.queue = deque()  # no maxlen
-        self.writer = WriterSingleton.getInstance()
+#         """
+#         super().__init__(**kwargs)
+#         self.destination = destination
+#         self.queue = deque()  # no maxlen
+#         self.writer = WriterSingleton.getInstance()
 
-    def process_update(self, update_message):
-        """
-        This assumes that the message is json formatted, then packages it as payload into an IU
-        """
-        for amq_iu, um in update_message:
-            # create a JSON from all decorated IU extracted information
-            decorated_iu = amq_iu.get_deco_iu()
+#     def process_update(self, update_message):
+#         """
+#         This assumes that the message is json formatted, then packages it as payload into an IU
+#         """
+#         for amq_iu, um in update_message:
+#             # create a JSON from all decorated IU extracted information
+#             decorated_iu = amq_iu.get_deco_iu()
 
-            # if we want all iu info
-            body = json.dumps(decorated_iu.__dict__)
-            # # if you have a to_amq() function in IU class
-            # body = decorated_iu.to_amq()
-            # # if we just want to send the payload
-            # body = decorated_iu.payload
+#             # if we want all iu info
+#             body = json.dumps(decorated_iu.__dict__)
+#             # # if you have a to_amq() function in IU class
+#             # body = decorated_iu.to_amq()
+#             # # if we just want to send the payload
+#             # body = decorated_iu.payload
 
-            # send the message to the correct destination
-            print(
-                f"sent {body},  to : {amq_iu.destination} , with headers : {amq_iu.headers}"
-            )
-            self.writer.send((body, amq_iu.destination, amq_iu.headers))
+#             # send the message to the correct destination
+#             print(
+#                 f"sent {body},  to : {amq_iu.destination} , with headers : {amq_iu.headers}"
+#             )
+#             self.writer.send((body, amq_iu.destination, amq_iu.headers))
 
-        return None
+#         return None
