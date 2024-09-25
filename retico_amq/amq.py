@@ -8,6 +8,7 @@ information revceived over the ZeroMQ bridge.
 """
 
 # retico
+# from functools import partial
 import keyboard
 import retico_core
 from retico_core.abstract import *
@@ -72,7 +73,7 @@ class AMQReader(retico_core.AbstractProducingModule):
     def output_iu():
         return IncrementalUnit
 
-    def __init__(self, ip, port, **kwargs):
+    def __init__(self, ip, port, print=False, **kwargs):
         """Initializes the ActiveMQReader.
 
         Args: topic(str): the topic/scope where the information will be read.
@@ -86,16 +87,16 @@ class AMQReader(retico_core.AbstractProducingModule):
         self.target_iu_types = dict()
         self.queue = deque()
         self._tts_thread_active = False
+        self.print = print
 
     def process_update(self, update_message):
-        pass
+        if self._tts_thread_active:
+            time.sleep(0.1)
 
     def prepare_run(self):
         super().prepare_run()
         self._tts_thread_active = True
         threading.Thread(target=self.run_process).start()
-        # time.sleep(100000)
-        keyboard.wait("q")
 
     def shutdown(self):
         """
@@ -124,6 +125,13 @@ class AMQReader(retico_core.AbstractProducingModule):
         self.target_iu_types[destination] = target_iu_type
 
     def on_message(self, frame):
+        # check if it doesn't throw exception ? in case some frame parameter is not printable
+        self.terminal_logger.info(
+            "AMQReader receives a message from ActiveMQ",
+            destination=frame.headers["destination"],
+            # headers=frame.headers,
+            # message=frame.body,
+        )
         self.queue.append(frame)
 
     def run_process(self):
@@ -138,7 +146,6 @@ class AMQReader(retico_core.AbstractProducingModule):
                     print(destination, "is not a recognized destination")
                     return None
 
-                self.terminal_logger.info("new iu", message=message)
                 try:
                     # try to parse the message to create a dict (it has to be a structured message JSON), and put it in the IU's init parameters.
                     # create the decorated IU (cannot use classical create_iu from AbstractModule)
@@ -147,15 +154,25 @@ class AMQReader(retico_core.AbstractProducingModule):
                     init_args = iu_type.__init__.__code__.co_varnames
                     common_args = msg_json.keys() & init_args
                     deleted_args = msg_json.keys() - init_args
-                    print(common_args)
-                    print(deleted_args)
-                    msg_json = {key: msg_json[key] for key in common_args}
+                    # print(common_args)
+                    # print(deleted_args)
+                    msg_json_filtered = {key: msg_json[key] for key in common_args}
                     output_iu = self.target_iu_types[destination](
                         creator=self,
                         iuid=f"{hash(self)}:{self.iu_counter}",
                         previous_iu=self._previous_iu,
                         grounded_in=None,
-                        **msg_json,
+                        **msg_json_filtered,
+                    )
+                    if self.print:
+                        print(
+                            "JSON MESSAGE RECEIVED: \n",
+                            json.dumps(msg_json, indent=2),
+                        )
+                    self.terminal_logger.info(
+                        "AMQReader creates new iu",
+                        destination=frame.headers["destination"],
+                        ID=msg_json["ID"],
                     )
                 except Exception as e:
                     # if message not parsable as a structured message (JSON), then put it as the IU's payload.
@@ -169,13 +186,27 @@ class AMQReader(retico_core.AbstractProducingModule):
                         grounded_in=None,
                         # payload=message,
                     )
+                self.terminal_logger.info(
+                    "create_iu",
+                    iuid=output_iu.iuid,
+                    previous_iu=(
+                        output_iu.previous_iu.iuid
+                        if output_iu.previous_iu is not None
+                        else None
+                    ),
+                    grounded_in=(
+                        output_iu.grounded_in.iuid
+                        if output_iu.grounded_in is not None
+                        else None
+                    ),
+                )
 
                 self.iu_counter += 1
                 self._previous_iu = output_iu
                 update_message = retico_core.UpdateMessage()
 
                 if "update_type" not in frame.headers:
-                    print("Incoming IU has no update_type!")
+                    # print("Incoming IU has no update_type!")
                     update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
                 elif frame.headers["update_type"] == "UpdateType.ADD":
                     update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
@@ -204,7 +235,7 @@ class AMQWriter(retico_core.AbstractModule):
     def input_ius():
         return [AMQIU]
 
-    def __init__(self, ip, port, **kwargs):
+    def __init__(self, ip, port, print=False, **kwargs):
         """Initializes the ActiveMQWriter.
 
         Args: topic(str): the topic/scope where the information will be read.
@@ -214,6 +245,7 @@ class AMQWriter(retico_core.AbstractModule):
         hosts = [(ip, port)]
         self.conn = stomp.Connection(host_and_ports=hosts, auto_content_length=False)
         self.conn.connect("admin", "admin", wait=True)
+        self.print = print
 
     def process_update(self, update_message):
         """
@@ -240,8 +272,11 @@ class AMQWriter(retico_core.AbstractModule):
                 "iuid",
             }
             iu_info = decorated_iu.__dict__
-            iu_info = {key: iu_info[key] for key in iu_info.keys() - black_listed_keys}
-            body = json.dumps(iu_info)
+            iu_info_filtered = {
+                key: iu_info[key] for key in iu_info.keys() - black_listed_keys
+            }
+            iu_info_filtered["ID"] = iu_info["iuid"]
+            body = json.dumps(iu_info_filtered, indent=2)
             # if you have a to_amq() function in IU class
             # body = decorated_iu.to_amq()
             # # if we just want to send the payload
@@ -249,8 +284,15 @@ class AMQWriter(retico_core.AbstractModule):
 
             # send the message to the correct destination
             self.terminal_logger.info(
-                "sent", destination=amq_iu.destination, headers=amq_iu.headers
+                "AMQWriter sends a message to ActiveMQ",
+                destination=amq_iu.destination,
+                ID=iu_info["iuid"],
+                # headers=amq_iu.headers,
+                # body=body,
             )
+            if self.print:
+                print("JSON MESSAGE SENT: \n", body)
+            # print(body)
             self.conn.send(
                 body=body,
                 destination=amq_iu.destination,
@@ -293,11 +335,21 @@ class AMQBridge(retico_core.AbstractModule):
         """
         This assumes that the message is json formatted, then packages it as payload into an IU
         """
-
         um = retico_core.abstract.UpdateMessage()
 
         for input_iu, ut in update_message:
-            if not input_iu.final:
+            if hasattr(input_iu, "final"):
+                if input_iu.final:
+                    self.terminal_logger.warning("IU IS FINAL")
+                else:
+                    # create AMQIU
+                    output_iu = self.create_iu(
+                        decorated_iu=input_iu,
+                        destination=self.destination,
+                        headers=self.headers,
+                    )
+                    um.add_iu(output_iu, ut)
+            else:
                 # create AMQIU
                 output_iu = self.create_iu(
                     decorated_iu=input_iu,
@@ -305,8 +357,6 @@ class AMQBridge(retico_core.AbstractModule):
                     headers=self.headers,
                 )
                 um.add_iu(output_iu, ut)
-            else:
-                self.terminal_logger.warning("IU IS FINAL")
 
         return um
 

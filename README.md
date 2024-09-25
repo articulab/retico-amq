@@ -5,6 +5,10 @@ ReTiCo module for ActiveMQ
 ## Installation
 
 ```bash
+cd path/to/your/retico-amq/clone
+```
+
+```bash
 pip install retico-amq
 ```
 
@@ -66,4 +70,178 @@ e = module_that_takes_SpeechRecognitionIU_as_input()
 
 reader.add(destination="/topic/ASR", target_iu_type=SpeechRecognitionIU)
 reader.subscribe(e)
+```
+
+### Example of execution trace
+
+Both AMQWriter and AMQReader have a `print` parameter, that you can set to True at initialization to enables the printing of the JSON body of the message sent to or received from ActiveMQ.
+
+With print = False (Default) :
+
+```bash
+test running until ENTER key is pressed
+2024-09-25T12:28:57.062708Z [info     ] TestProducingModule creates a retico IU module=AMQReader Module
+2024-09-25T12:28:57.142886Z [info     ] AMQWriter sends a message to ActiveMQ ID=122806061901:0 destination=/topic/AMQ_test module=AMQWriter Module
+2024-09-25T12:28:57.439677Z [info     ] AMQReader receives a message from ActiveMQ destination=/topic/AMQ_test module=AMQReader Module
+2024-09-25T12:28:57.676791Z [info     ] AMQReader creates new iu       ID=122806061901:0 destination=/topic/AMQ_test module=AMQReader Module
+2024-09-25T12:28:57.792264Z [info     ] CallbackModule receives a retico IU from AMQReader module=Callback Debug Module
+```
+
+With print = True :
+
+```bash
+test running until ENTER key is pressed
+2024-09-25T12:28:57.062708Z [info     ] TestProducingModule creates a retico IU module=AMQReader Module
+2024-09-25T12:28:57.142886Z [info     ] AMQWriter sends a message to ActiveMQ ID=122806061901:0 destination=/topic/AMQ_test module=AMQWriter Module
+JSON MESSAGE SENT:
+ {
+  "created_at": "2024-09-25T14:28:57.050670",
+  "head_movements": [
+    {
+      "x": 20,
+      "y": 20,
+      "duration": 2,
+      "delay": 0
+    }
+  ],
+  "emotions": [
+    {
+      "name": "happy",
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "name": "sad",
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "payload": null,
+  "eye_gazes": [
+    {
+      "x": 30,
+      "y": 50,
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "left_hand_movements": [
+    {
+      "x": 100,
+      "y": 30,
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "animations": [
+    {
+      "name": "waiving",
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "name": "pointing",
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "right_hand_movements": [
+    {
+      "x": 30,
+      "y": 0,
+      "duration": 0.5,
+      "delay": 0
+    },
+    {
+      "x": 0,
+      "y": 50,
+      "duration": 1,
+      "delay": 0.5
+    }
+  ],
+  "ID": "122806061901:0"
+}
+2024-09-25T12:28:57.439677Z [info     ] AMQReader receives a message from ActiveMQ destination=/topic/AMQ_test module=AMQReader Module
+JSON MESSAGE RECEIVED:
+ {
+  "created_at": "2024-09-25T14:28:57.050670",
+  "head_movements": [
+    {
+      "x": 20,
+      "y": 20,
+      "duration": 2,
+      "delay": 0
+    }
+  ],
+  "emotions": [
+    {
+      "name": "happy",
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "name": "sad",
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "payload": null,
+  "eye_gazes": [
+    {
+      "x": 30,
+      "y": 50,
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "left_hand_movements": [
+    {
+      "x": 100,
+      "y": 30,
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "animations": [
+    {
+      "name": "waiving",
+      "duration": 1,
+      "delay": 0
+    },
+    {
+      "name": "pointing",
+      "duration": 1,
+      "delay": 1
+    }
+  ],
+  "right_hand_movements": [
+    {
+      "x": 30,
+      "y": 0,
+      "duration": 0.5,
+      "delay": 0
+    },
+    {
+      "x": 0,
+      "y": 50,
+      "duration": 1,
+      "delay": 0.5
+    }
+  ],
+  "ID": "122806061901:0"
+}
+2024-09-25T12:28:57.676791Z [info     ] AMQReader creates new iu       ID=122806061901:0 destination=/topic/AMQ_test module=AMQReader Module
+2024-09-25T12:28:57.792264Z [info     ] CallbackModule receives a retico IU from AMQReader module=Callback Debug Module
 ```

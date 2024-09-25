@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retico-amq"
+authors = [{ name = "Marius Le Chapelier", email = "mariuslechaper@gmail.com" }]
+description = ""
+readme = "README.md"
+license = { file = "LICENSE" }
+version = "0.1.0"
+requires-python = ">=3.11.7"
+dependencies = [
+    "keyboard",
+    "structlog",
+    "stomp-py",
+    "retico-core @ git+https://github.com/articulab/retico-core.git",
+]
