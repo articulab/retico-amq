@@ -72,6 +72,20 @@ reader.add(destination="/topic/ASR", target_iu_type=SpeechRecognitionIU)
 reader.subscribe(e)
 ```
 
+### Test the AMQWriter and AMQReader classes
+
+The `utils.py` file contains classes and functions to test the execution of these 2 modules. The testing function `test_exchange_through_activeMQ` takes 1 argument `type`, you can it to `"text"`, `"audio"`, or `"gesture"` to test the exchange of corresponding IUs through ActiveMQ (you set the argument in the bottom of the file). The ActiveMQ topic where the messages are exchanged is `/topic/AMQ_test/`, you can monitor through ActiveMQ portal : <http://127.0.0.1:8161/admin/>.
+
+To run the test, you first need to have ActiveMQ running on your computer :
+<https://activemq.apache.org/components/classic/documentation/getting-started#StartingActiveMQStartingActiveMQ>
+
+Then, from your retico-amq clone, run the following commads :
+
+```bash
+cd retico_amq
+python utils.py
+```
+
 ### Example of execution trace
 
 Both AMQWriter and AMQReader have a `print` parameter, that you can set to True at initialization to enables the printing of the JSON body of the message sent to or received from ActiveMQ.
