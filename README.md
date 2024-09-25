@@ -2,6 +2,10 @@
 
 ReTiCo module for ActiveMQ
 
+## requirements
+
+- ActiveMQ (version 5.15.0 : <https://activemq.apache.org/components/classic/download/classic-05-15-00>)
+
 ## Installation
 
 ```bash
@@ -12,7 +16,7 @@ cd path/to/your/retico-amq/clone
 pip install retico-amq
 ```
 
-## Example
+## Quick init example
 
 ```python
 # Both reader and writer are single modules that can handle multiple message sending / reception.
@@ -25,7 +29,7 @@ reader = AMQReader(ip=ip, port='61613')
 reader.add(destination="/topic/ASR", target_iu_type=SpeechRecognitionIU)
 ```
 
-## How to link them with other modules
+## How to connect them to other modules
 
 ### AMQWriter
 
