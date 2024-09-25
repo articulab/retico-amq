@@ -13,7 +13,7 @@ cd path/to/your/retico-amq/clone
 ```
 
 ```bash
-pip install retico-amq
+pip install .
 ```
 
 ## Quick init example
