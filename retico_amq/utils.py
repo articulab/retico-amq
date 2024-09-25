@@ -6,7 +6,8 @@ import keyboard
 import retico_core
 import base64
 
-from amq import AMQReader, AMQWriter, AMQBridge
+import retico_amq
+from retico_amq.amq import AMQReader, AMQWriter, AMQBridge
 
 
 class GestureIU(retico_core.IncrementalUnit):
