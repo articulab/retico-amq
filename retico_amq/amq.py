@@ -172,7 +172,7 @@ class AMQReader(retico_core.AbstractProducingModule):
                     self.terminal_logger.info(
                         "AMQReader creates new iu",
                         destination=frame.headers["destination"],
-                        ID=msg_json["ID"],
+                        ID=msg_json["requestID"],
                     )
                 except Exception as e:
                     # if message not parsable as a structured message (JSON), then put it as the IU's payload.
@@ -275,7 +275,7 @@ class AMQWriter(retico_core.AbstractModule):
             iu_info_filtered = {
                 key: iu_info[key] for key in iu_info.keys() - black_listed_keys
             }
-            iu_info_filtered["ID"] = iu_info["iuid"]
+            iu_info_filtered["requestID"] = iu_info["iuid"]
             body = json.dumps(iu_info_filtered, indent=2)
             # if you have a to_amq() function in IU class
             # body = decorated_iu.to_amq()
@@ -307,7 +307,7 @@ class AMQBridge(retico_core.AbstractModule):
 
     @staticmethod
     def name():
-        return "ActiveMQ Bridge Module"
+        return "AMQBridge Module"
 
     @staticmethod
     def description():

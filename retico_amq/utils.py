@@ -10,51 +10,15 @@ import retico_amq
 from retico_amq.amq import AMQReader, AMQWriter, AMQBridge
 
 
-class GestureIU(retico_core.IncrementalUnit):
-    """"""
-
-    @staticmethod
-    def type():
-        return "Gesture IU"
-
-    def __init__(
-        self,
-        creator=None,
-        iuid=0,
-        previous_iu=None,
-        grounded_in=None,
-        animations=None,
-        emotions=None,
-        eye_gazes=None,
-        left_hand_movements=None,
-        right_hand_movements=None,
-        head_movements=None,
-        **kwargs,
-    ):
-        super().__init__(
-            creator=creator,
-            iuid=iuid,
-            previous_iu=previous_iu,
-            grounded_in=grounded_in,
-            payload=None,
-        )
-        self.animations = animations
-        self.emotions = emotions
-        self.eye_gazes = eye_gazes
-        self.left_hand_movements = left_hand_movements
-        self.right_hand_movements = right_hand_movements
-        self.head_movements = head_movements
-
-
 class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
     @staticmethod
     def name():
-        return "AMQReader Module"
+        return "TestTextIUProducing Module"
 
     @staticmethod
     def description():
-        return "A Module providing reading onto a ActiveMQ bus"
+        return "A Module producing TextIU each n seconds"
 
     @staticmethod
     def output_iu():
@@ -71,9 +35,6 @@ class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
         threading.Thread(target=self.run_process).start()
 
     def shutdown(self):
-        """
-        overrides AbstractModule : https://github.com/retico-team/retico-core/blob/main/retico_core/abstract.py#L819
-        """
         super().shutdown()
         self._tts_thread_active = False
 
@@ -82,15 +43,18 @@ class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
     def run_process(self):
         while self._tts_thread_active:
-            um = retico_core.UpdateMessage()
+
+            # hardcoded IU values just for the test
             iu = self.create_iu(text=f"this is a test message : {self.cpt}")
-            self.cpt += 1
+
+            um = retico_core.UpdateMessage()
             um.add_iu(iu, retico_core.UpdateType.ADD)
             self.append(um)
             self.terminal_logger.info(
                 "TestProducingModule creates a retico IU",
                 text=iu.text,
             )
+            self.cpt += 1
             time.sleep(10)
 
 
@@ -98,11 +62,11 @@ class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
     @staticmethod
     def name():
-        return "AMQReader Module"
+        return "TestAudioIUProducing Module"
 
     @staticmethod
     def description():
-        return "A Module providing reading onto a ActiveMQ bus"
+        return "A Module producing AudioIU each n seconds"
 
     @staticmethod
     def output_iu():
@@ -130,9 +94,6 @@ class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
         threading.Thread(target=self.run_process).start()
 
     def shutdown(self):
-        """
-        overrides AbstractModule : https://github.com/retico-team/retico-core/blob/main/retico_core/abstract.py#L819
-        """
         super().shutdown()
         self._tts_thread_active = False
 
@@ -143,16 +104,20 @@ class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
         # The module doesn't send enough audio to have a continous signal, it's just a test module
         # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
         while self._tts_thread_active:
-            um = retico_core.UpdateMessage()
+
+            # hardcoded IU values just for the test
             audio_chunk = b"\x00" * self.sample_width * self.chunk_size
             # audio_encoded = base64.b64encode(audio_chunk)
             audio_chunk_str = str(audio_chunk)
+
             iu = self.create_iu(
                 raw_audio=audio_chunk_str,
                 nframes=self.frame_length,
                 rate=self.rate,
                 sample_width=self.sample_width,
             )
+
+            um = retico_core.UpdateMessage()
             um.add_iu(iu, retico_core.UpdateType.ADD)
             self.append(um)
             self.terminal_logger.info(
@@ -163,23 +128,76 @@ class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
             # time.sleep(self.frame_length)
 
 
-class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule):
+class TextAlignedAudioIU(retico_core.audio.AudioIU):
+    """AudioIU enhanced with information that aligns the AudioIU to the current written agent turn.
+
+    Attributes:
+        - grounded_word : the word corresponding to the audio.
+        - turn_id (int) : The index of the dialogue's turn the IU is part of.
+        - clause_id (int) : The index of the clause the IU is part of, in the current turn.
+        - word_id (int) : The index of the word that corresponds to the end of the IU].
+        - char_id (int) : The index of the last character from the grounded_word.
+        - final (bool) : Wether the IU is an EOT.
+    """
+
+    @staticmethod
+    def type():
+        return "Text Aligned Audio IU"
+
+    def __init__(
+        self,
+        creator=None,
+        iuid=0,
+        previous_iu=None,
+        grounded_in=None,
+        raw_audio=None,
+        rate=None,
+        nframes=None,
+        sample_width=None,
+        grounded_word=None,
+        word_id=None,
+        char_id=None,
+        turn_id=None,
+        clause_id=None,
+        final=None,
+        **kwargs,
+    ):
+        super().__init__(
+            creator=creator,
+            iuid=iuid,
+            previous_iu=previous_iu,
+            grounded_in=grounded_in,
+            payload=raw_audio,
+            raw_audio=raw_audio,
+            rate=rate,
+            nframes=nframes,
+            sample_width=sample_width,
+        )
+        self.grounded_word = grounded_word
+        self.word_id = word_id
+        self.char_id = char_id
+        self.turn_id = turn_id
+        self.clause_id = clause_id
+        self.final = final
+
+
+class TestAudioTurnIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
     @staticmethod
     def name():
-        return "AMQReader Module"
+        return "TestAudioTurnIUProducing Module"
 
     @staticmethod
     def description():
-        return "A Module providing reading onto a ActiveMQ bus"
+        return "A Module producing TextAlignedAudioIU each n seconds"
 
     @staticmethod
     def output_iu():
-        return GestureIU
+        return TextAlignedAudioIU
 
-    def __init__(self, **kwargs):
+    def __init__(self, frame_length=0.02, rate=16000, sample_width=2, **kwargs):
         """
-        Initialize the TestAudioIUProducingModule Module.
+        Initialize the TestAudioTurnIUProducingModule Module.
 
         Args:
             frame_length (float): The length of one frame (i.e., IU) in seconds
@@ -187,6 +205,10 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
             sample_width (int): The width of a single sample of audio in bytes.
         """
         super().__init__(**kwargs)
+        self.frame_length = frame_length
+        self.chunk_size = round(rate * frame_length)
+        self.rate = rate
+        self.sample_width = sample_width
         self._tts_thread_active = False
 
     def prepare_run(self):
@@ -195,9 +217,6 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
         threading.Thread(target=self.run_process).start()
 
     def shutdown(self):
-        """
-        overrides AbstractModule : https://github.com/retico-team/retico-core/blob/main/retico_core/abstract.py#L819
-        """
         super().shutdown()
         self._tts_thread_active = False
 
@@ -208,31 +227,163 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
         # The module doesn't send enough audio to have a continous signal, it's just a test module
         # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
         while self._tts_thread_active:
-            animations = [
-                {"name": "waiving", "duration": 1, "delay": 0},
-                {"name": "pointing", "duration": 1, "delay": 1},
-            ]
-            emotions = [
-                {"name": "happy", "duration": 1, "delay": 0},
-                {"name": "sad", "duration": 1, "delay": 1},
-            ]
-            eye_gazes = [
-                {"x": 30, "y": 50, "duration": 1, "delay": 0},
-                {"x": 0, "y": 0, "duration": 1, "delay": 1},
-            ]
-            left_hand_movements = [{"x": 100, "y": 30, "duration": 1, "delay": 1}]
-            right_hand_movements = [
-                {"x": 30, "y": 0, "duration": 0.5, "delay": 0},
-                {"x": 0, "y": 50, "duration": 1, "delay": 0.5},
-            ]
-            head_movements = [{"x": 20, "y": 20, "duration": 2, "delay": 0}]
+
+            # hardcoded IU values just for the test
+            audio_chunk = b"\x00" * self.sample_width * self.chunk_size
+            # audio_encoded = base64.b64encode(audio_chunk)
+            audio_chunk_str = str(audio_chunk)
+            grounded_word = "test_grounded_word"
+            word_id = 0
+            char_id = 18
+            turn_id = 0
+            clause_id = 0
+            final = False
+
             iu = self.create_iu(
+                raw_audio=audio_chunk_str,
+                nframes=self.frame_length,
+                rate=self.rate,
+                sample_width=self.sample_width,
+                grounded_word=grounded_word,
+                word_id=word_id,
+                char_id=char_id,
+                turn_id=turn_id,
+                clause_id=clause_id,
+                final=final,
+            )
+
+            um = retico_core.UpdateMessage()
+            um.add_iu(iu, retico_core.UpdateType.ADD)
+            self.append(um)
+            self.terminal_logger.info(
+                "TestProducingModule creates a retico IU",
+                audio_first_bytes=iu.payload[:20],
+            )
+            time.sleep(10)
+            # time.sleep(self.frame_length)
+
+
+class GestureIU(retico_core.IncrementalUnit):
+
+    @staticmethod
+    def type():
+        return "Gesture IU"
+
+    def __init__(
+        self,
+        creator=None,
+        iuid=0,
+        previous_iu=None,
+        grounded_in=None,
+        turnID=None,
+        clauseID=None,
+        interrupt=None,
+        animations=None,
+        blendshapes=None,
+        gazes=None,
+        left_hand_movements=None,
+        right_hand_movements=None,
+        lookAt=None,
+        **kwargs,
+    ):
+        super().__init__(
+            creator=creator,
+            iuid=iuid,
+            previous_iu=previous_iu,
+            grounded_in=grounded_in,
+            payload=None,
+        )
+
+        self.turnID = turnID
+        self.clauseID = clauseID
+        self.interrupt = interrupt
+        self.animations = animations
+        self.blendshapes = blendshapes
+        self.gazes = gazes
+        self.left_hand_movements = left_hand_movements
+        self.right_hand_movements = right_hand_movements
+        self.lookAt = lookAt
+
+
+class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule):
+
+    @staticmethod
+    def name():
+        return "TestGestureIUProducing Module"
+
+    @staticmethod
+    def description():
+        return "A Module producing GestureIU each n seconds"
+
+    @staticmethod
+    def output_iu():
+        return GestureIU
+
+    def __init__(self, **kwargs):
+        """
+        Initialize the TestGestureIUProducingModule Module.
+        """
+        super().__init__(**kwargs)
+        self._tts_thread_active = False
+        self.cpt = 0
+
+    def prepare_run(self):
+        super().prepare_run()
+        self._tts_thread_active = True
+        threading.Thread(target=self.run_process).start()
+
+    def shutdown(self):
+        super().shutdown()
+        self._tts_thread_active = False
+
+    def process_update(self, update_message):
+        pass
+
+    def run_process(self):
+        # The module doesn't send enough audio to have a continous signal, it's just a test module
+        # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
+        while self._tts_thread_active:
+            turnID = self.cpt // 2
+            clauseID = self.cpt % 2
+            interrupt = 0
+            animations = [
+                {
+                    "animation": "waiving",
+                    "bodypart": "all",
+                    "duration": 1.0,
+                    "delay": 0.0,
+                },
+                {
+                    "animation": "pointing",
+                    "bodypart": "leftArm",
+                    "duration": 1.0,
+                    "delay": 1.0,
+                },
+            ]
+            blendshapes = [
+                {"id": "happy", "value": 1.0, "duration": 1.0, "delay": 0.0},
+                {"id": "sad", "value": 1.0, "duration": 1.0, "delay": 1.0},
+            ]
+            gazes = [
+                {"x": 30, "y": 50, "duration": 1.0, "delay": 0.0},
+                {"x": 0, "y": 0, "duration": 1.0, "delay": 1.0},
+            ]
+            left_hand_movements = [{"x": 100, "y": 30, "duration": 1.0, "delay": 1.0}]
+            right_hand_movements = [
+                {"x": 30, "y": 0, "duration": 0.5, "delay": 0.0},
+                {"x": 0, "y": 50, "duration": 1.0, "delay": 0.5},
+            ]
+            lookAt = [{"x": 20, "y": 20, "duration": 2.0, "delay": 0.0}]
+            iu = self.create_iu(
+                turnID=turnID,
+                clauseID=clauseID,
+                interrupt=interrupt,
                 animations=animations,
-                emotions=emotions,
-                eye_gazes=eye_gazes,
+                blendshapes=blendshapes,
+                gazes=gazes,
                 left_hand_movements=left_hand_movements,
                 right_hand_movements=right_hand_movements,
-                head_movements=head_movements,
+                lookAt=lookAt,
             )
 
             um = retico_core.UpdateMessage()
@@ -242,6 +393,7 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
                 "TestProducingModule creates a retico IU",
                 # audio_first_bytes=iu.payload[:20],
             )
+            self.cpt += 1
             time.sleep(10)
             # time.sleep(self.frame_length)
 
@@ -274,7 +426,7 @@ def callback_gesture_AMQReader(update_msg, module=None):
         )
 
 
-def test_exchange_through_activeMQ(type):
+def test_exchange_through_activeMQ(iu_type=None):
     # Parameters
     ip = "localhost"
     port = "61613"
@@ -297,18 +449,24 @@ def test_exchange_through_activeMQ(type):
     ar.subscribe(cback)
 
     # additions depending on the tested IU type
-    if type == "text":
+    if iu_type == "text":
         producer = TestTextIUProducingModule()
         producer.subscribe(bridge)
         ar.add(destination=destination, target_iu_type=retico_core.text.TextIU)
         cback.callback = partial(callback_text_AMQReader, module=cback)
-    elif type == "audio":
+    elif iu_type == "audio":
         producer = TestAudioIUProducingModule()
         producer.subscribe(bridge)
 
         ar.add(destination=destination, target_iu_type=retico_core.audio.AudioIU)
         cback.callback = partial(callback_audio_AMQReader, module=cback)
-    elif type == "gesture":
+    elif iu_type == "audio_turn":
+        producer = TestAudioTurnIUProducingModule()
+        producer.subscribe(bridge)
+
+        ar.add(destination=destination, target_iu_type=TextAlignedAudioIU)
+        cback.callback = partial(callback_audio_AMQReader, module=cback)
+    elif iu_type == "gesture":
         producer = TestGestureIUProducingModule()
         producer.subscribe(bridge)
         ar.add(destination=destination, target_iu_type=GestureIU)
@@ -346,4 +504,5 @@ def test_exchange_through_activeMQ(type):
 if __name__ == "__main__":
     # test_exchange_through_activeMQ("text")
     # test_exchange_through_activeMQ("audio")
+    # test_exchange_through_activeMQ("audio_turn")
     test_exchange_through_activeMQ("gesture")
