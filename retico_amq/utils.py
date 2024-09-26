@@ -2,12 +2,14 @@ from functools import partial
 import json
 import threading
 import time
+import traceback
 import keyboard
 import retico_core
 import base64
 
 import retico_amq
 from retico_amq.amq import AMQReader, AMQWriter, AMQBridge
+from retico_core.log_utils import log_exception
 
 
 class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
@@ -43,19 +45,21 @@ class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
     def run_process(self):
         while self._tts_thread_active:
+            try:
+                # hardcoded IU values just for the test
+                iu = self.create_iu(text=f"this is a test message : {self.cpt}")
 
-            # hardcoded IU values just for the test
-            iu = self.create_iu(text=f"this is a test message : {self.cpt}")
-
-            um = retico_core.UpdateMessage()
-            um.add_iu(iu, retico_core.UpdateType.ADD)
-            self.append(um)
-            self.terminal_logger.info(
-                "TestProducingModule creates a retico IU",
-                text=iu.text,
-            )
-            self.cpt += 1
-            time.sleep(10)
+                um = retico_core.UpdateMessage()
+                um.add_iu(iu, retico_core.UpdateType.ADD)
+                self.append(um)
+                self.terminal_logger.info(
+                    "TestProducingModule creates a retico IU",
+                    text=iu.text,
+                )
+                self.cpt += 1
+                time.sleep(10)
+            except Exception as e:
+                log_exception(module=self, exception=e)
 
 
 class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
@@ -104,28 +108,31 @@ class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
         # The module doesn't send enough audio to have a continous signal, it's just a test module
         # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
         while self._tts_thread_active:
+            try:
 
-            # hardcoded IU values just for the test
-            audio_chunk = b"\x00" * self.sample_width * self.chunk_size
-            # audio_encoded = base64.b64encode(audio_chunk)
-            audio_chunk_str = str(audio_chunk)
+                # hardcoded IU values just for the test
+                audio_chunk = b"\x00" * self.sample_width * self.chunk_size
+                # audio_encoded = base64.b64encode(audio_chunk)
+                audio_chunk_str = str(audio_chunk)
 
-            iu = self.create_iu(
-                raw_audio=audio_chunk_str,
-                nframes=self.frame_length,
-                rate=self.rate,
-                sample_width=self.sample_width,
-            )
+                iu = self.create_iu(
+                    raw_audio=audio_chunk_str,
+                    nframes=self.frame_length,
+                    rate=self.rate,
+                    sample_width=self.sample_width,
+                )
 
-            um = retico_core.UpdateMessage()
-            um.add_iu(iu, retico_core.UpdateType.ADD)
-            self.append(um)
-            self.terminal_logger.info(
-                "TestProducingModule creates a retico IU",
-                audio_first_bytes=iu.payload[:20],
-            )
-            time.sleep(10)
-            # time.sleep(self.frame_length)
+                um = retico_core.UpdateMessage()
+                um.add_iu(iu, retico_core.UpdateType.ADD)
+                self.append(um)
+                self.terminal_logger.info(
+                    "TestProducingModule creates a retico IU",
+                    audio_first_bytes=iu.payload[:20],
+                )
+                time.sleep(10)
+                # time.sleep(self.frame_length)
+            except Exception as e:
+                log_exception(module=self, exception=e)
 
 
 class TextAlignedAudioIU(retico_core.audio.AudioIU):
@@ -227,40 +234,43 @@ class TestAudioTurnIUProducingModule(retico_core.abstract.AbstractProducingModul
         # The module doesn't send enough audio to have a continous signal, it's just a test module
         # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
         while self._tts_thread_active:
+            try:
 
-            # hardcoded IU values just for the test
-            audio_chunk = b"\x00" * self.sample_width * self.chunk_size
-            # audio_encoded = base64.b64encode(audio_chunk)
-            audio_chunk_str = str(audio_chunk)
-            grounded_word = "test_grounded_word"
-            word_id = 0
-            char_id = 18
-            turn_id = 0
-            clause_id = 0
-            final = False
+                # hardcoded IU values just for the test
+                audio_chunk = b"\x00" * self.sample_width * self.chunk_size
+                # audio_encoded = base64.b64encode(audio_chunk)
+                audio_chunk_str = str(audio_chunk)
+                grounded_word = "test_grounded_word"
+                word_id = 0
+                char_id = 18
+                turn_id = 0
+                clause_id = 0
+                final = False
 
-            iu = self.create_iu(
-                raw_audio=audio_chunk_str,
-                nframes=self.frame_length,
-                rate=self.rate,
-                sample_width=self.sample_width,
-                grounded_word=grounded_word,
-                word_id=word_id,
-                char_id=char_id,
-                turn_id=turn_id,
-                clause_id=clause_id,
-                final=final,
-            )
+                iu = self.create_iu(
+                    raw_audio=audio_chunk_str,
+                    nframes=self.frame_length,
+                    rate=self.rate,
+                    sample_width=self.sample_width,
+                    grounded_word=grounded_word,
+                    word_id=word_id,
+                    char_id=char_id,
+                    turn_id=turn_id,
+                    clause_id=clause_id,
+                    final=final,
+                )
 
-            um = retico_core.UpdateMessage()
-            um.add_iu(iu, retico_core.UpdateType.ADD)
-            self.append(um)
-            self.terminal_logger.info(
-                "TestProducingModule creates a retico IU",
-                audio_first_bytes=iu.payload[:20],
-            )
-            time.sleep(10)
-            # time.sleep(self.frame_length)
+                um = retico_core.UpdateMessage()
+                um.add_iu(iu, retico_core.UpdateType.ADD)
+                self.append(um)
+                self.terminal_logger.info(
+                    "TestProducingModule creates a retico IU",
+                    audio_first_bytes=iu.payload[:20],
+                )
+                time.sleep(10)
+                # time.sleep(self.frame_length)
+            except Exception as e:
+                log_exception(module=self, exception=e)
 
 
 class GestureIU(retico_core.IncrementalUnit):
@@ -343,59 +353,64 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
         # The module doesn't send enough audio to have a continous signal, it's just a test module
         # If you want the module to send continous signal, change the time.sleep to time.sleep(self.frame_length), or the frame_length to 10
         while self._tts_thread_active:
-            turnID = self.cpt // 2
-            clauseID = self.cpt % 2
-            interrupt = 0
-            animations = [
-                {
-                    "animation": "waiving",
-                    "bodypart": "all",
-                    "duration": 1.0,
-                    "delay": 0.0,
-                },
-                {
-                    "animation": "pointing",
-                    "bodypart": "leftArm",
-                    "duration": 1.0,
-                    "delay": 1.0,
-                },
-            ]
-            blendshapes = [
-                {"id": "happy", "value": 1.0, "duration": 1.0, "delay": 0.0},
-                {"id": "sad", "value": 1.0, "duration": 1.0, "delay": 1.0},
-            ]
-            gazes = [
-                {"x": 30, "y": 50, "duration": 1.0, "delay": 0.0},
-                {"x": 0, "y": 0, "duration": 1.0, "delay": 1.0},
-            ]
-            left_hand_movements = [{"x": 100, "y": 30, "duration": 1.0, "delay": 1.0}]
-            right_hand_movements = [
-                {"x": 30, "y": 0, "duration": 0.5, "delay": 0.0},
-                {"x": 0, "y": 50, "duration": 1.0, "delay": 0.5},
-            ]
-            lookAt = [{"x": 20, "y": 20, "duration": 2.0, "delay": 0.0}]
-            iu = self.create_iu(
-                turnID=turnID,
-                clauseID=clauseID,
-                interrupt=interrupt,
-                animations=animations,
-                blendshapes=blendshapes,
-                gazes=gazes,
-                left_hand_movements=left_hand_movements,
-                right_hand_movements=right_hand_movements,
-                lookAt=lookAt,
-            )
+            try:
+                turnID = self.cpt // 2
+                clauseID = self.cpt % 2
+                interrupt = 0
+                animations = [
+                    {
+                        "animation": "waiving",
+                        "bodypart": "all",
+                        "duration": 1.0,
+                        "delay": 0.0,
+                    },
+                    {
+                        "animation": "pointing",
+                        "bodypart": "leftArm",
+                        "duration": 1.0,
+                        "delay": 1.0,
+                    },
+                ]
+                blendshapes = [
+                    {"id": "happy", "value": 1.0, "duration": 1.0, "delay": 0.0},
+                    {"id": "sad", "value": 1.0, "duration": 1.0, "delay": 1.0},
+                ]
+                gazes = [
+                    {"x": 30, "y": 50, "duration": 1.0, "delay": 0.0},
+                    {"x": 0, "y": 0, "duration": 1.0, "delay": 1.0},
+                ]
+                left_hand_movements = [
+                    {"x": 100, "y": 30, "duration": 1.0, "delay": 1.0}
+                ]
+                right_hand_movements = [
+                    {"x": 30, "y": 0, "duration": 0.5, "delay": 0.0},
+                    {"x": 0, "y": 50, "duration": 1.0, "delay": 0.5},
+                ]
+                lookAt = [{"x": 20, "y": 20, "duration": 2.0, "delay": 0.0}]
+                iu = self.create_iu(
+                    turnID=turnID,
+                    clauseID=clauseID,
+                    interrupt=interrupt,
+                    animations=animations,
+                    blendshapes=blendshapes,
+                    gazes=gazes,
+                    left_hand_movements=left_hand_movements,
+                    right_hand_movements=right_hand_movements,
+                    lookAt=lookAt,
+                )
 
-            um = retico_core.UpdateMessage()
-            um.add_iu(iu, retico_core.UpdateType.ADD)
-            self.append(um)
-            self.terminal_logger.info(
-                "TestProducingModule creates a retico IU",
-                # audio_first_bytes=iu.payload[:20],
-            )
-            self.cpt += 1
-            time.sleep(10)
-            # time.sleep(self.frame_length)
+                um = retico_core.UpdateMessage()
+                um.add_iu(iu, retico_core.UpdateType.ADD)
+                self.append(um)
+                self.terminal_logger.info(
+                    "TestProducingModule creates a retico IU",
+                    # audio_first_bytes=iu.payload[:20],
+                )
+                self.cpt += 1
+                time.sleep(10)
+                # time.sleep(self.frame_length)
+            except Exception as e:
+                log_exception(module=self, exception=e)
 
 
 def callback_fun(update_msg):

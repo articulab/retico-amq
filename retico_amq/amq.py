@@ -9,6 +9,7 @@ information revceived over the ZeroMQ bridge.
 
 # retico
 # from functools import partial
+import traceback
 import keyboard
 import retico_core
 from retico_core.abstract import *
@@ -20,6 +21,7 @@ import datetime
 import stomp
 import time
 from collections import deque
+from retico_core.log_utils import log_exception
 
 
 class AMQIU(retico_core.IncrementalUnit):
@@ -80,10 +82,8 @@ class AMQReader(retico_core.AbstractProducingModule):
 
         """
         super().__init__(**kwargs)
-        hosts = [(ip, port)]
-        self.conn = stomp.Connection(host_and_ports=hosts, auto_content_length=False)
-        self.conn.connect("admin", "admin", wait=True)
-        self.conn.set_listener("", self.Listener(self))
+        self.hosts = [(ip, port)]
+        self.conn = None
         self.target_iu_types = dict()
         self.queue = deque()
         self._tts_thread_active = False
@@ -92,6 +92,24 @@ class AMQReader(retico_core.AbstractProducingModule):
     def process_update(self, update_message):
         if self._tts_thread_active:
             time.sleep(0.1)
+
+    def setup(self, log_folder=None, terminal_logger=None, file_logger=None):
+        super().setup(
+            log_folder=log_folder,
+            terminal_logger=terminal_logger,
+            file_logger=file_logger,
+        )
+        try:
+            self.conn = stomp.Connection(
+                host_and_ports=self.hosts, auto_content_length=False
+            )
+            self.conn.connect("admin", "admin", wait=True)
+            self.conn.set_listener("", self.Listener(self))
+            for destination in self.target_iu_types:
+                self.conn.subscribe(destination=destination, id=1, ack="auto")
+        except stomp.exception.ConnectFailedException as e:
+            log_exception(module=self, exception=e)
+            raise e
 
     def prepare_run(self):
         super().prepare_run()
@@ -121,7 +139,6 @@ class AMQReader(retico_core.AbstractProducingModule):
             self.module.on_message(frame)
 
     def add(self, destination, target_iu_type):
-        self.conn.subscribe(destination=destination, id=1, ack="auto")
         self.target_iu_types[destination] = target_iu_type
 
     def on_message(self, frame):
@@ -136,85 +153,87 @@ class AMQReader(retico_core.AbstractProducingModule):
 
     def run_process(self):
         while self._tts_thread_active:
-            time.sleep(0.2)
-            if len(self.queue) > 0:
-                frame = self.queue.popleft()
-                message = frame.body
-                destination = frame.headers["destination"]
+            try:
+                time.sleep(0.2)
+                if len(self.queue) > 0:
+                    frame = self.queue.popleft()
+                    message = frame.body
+                    destination = frame.headers["destination"]
 
-                if destination not in self.target_iu_types:
-                    print(destination, "is not a recognized destination")
-                    return None
+                    if destination not in self.target_iu_types:
+                        print(destination, "is not a recognized destination")
+                        return None
 
-                try:
-                    # try to parse the message to create a dict (it has to be a structured message JSON), and put it in the IU's init parameters.
-                    # create the decorated IU (cannot use classical create_iu from AbstractModule)
-                    msg_json = json.loads(message)
-                    iu_type = self.target_iu_types[destination]
-                    init_args = iu_type.__init__.__code__.co_varnames
-                    common_args = msg_json.keys() & init_args
-                    deleted_args = msg_json.keys() - init_args
-                    # print(common_args)
-                    # print(deleted_args)
-                    msg_json_filtered = {key: msg_json[key] for key in common_args}
-                    output_iu = self.target_iu_types[destination](
-                        creator=self,
-                        iuid=f"{hash(self)}:{self.iu_counter}",
-                        previous_iu=self._previous_iu,
-                        grounded_in=None,
-                        **msg_json_filtered,
-                    )
-                    if self.print:
-                        print(
-                            "JSON MESSAGE RECEIVED: \n",
-                            json.dumps(msg_json, indent=2),
+                    try:
+                        # try to parse the message to create a dict (it has to be a structured message JSON), and put it in the IU's init parameters.
+                        # create the decorated IU (cannot use classical create_iu from AbstractModule)
+                        msg_json = json.loads(message)
+                        iu_type = self.target_iu_types[destination]
+                        init_args = iu_type.__init__.__code__.co_varnames
+                        common_args = msg_json.keys() & init_args
+                        deleted_args = msg_json.keys() - init_args
+                        # print(common_args)
+                        # print(deleted_args)
+                        msg_json_filtered = {key: msg_json[key] for key in common_args}
+                        output_iu = self.target_iu_types[destination](
+                            creator=self,
+                            iuid=f"{hash(self)}:{self.iu_counter}",
+                            previous_iu=self._previous_iu,
+                            grounded_in=None,
+                            **msg_json_filtered,
+                        )
+                        if self.print:
+                            print(
+                                "JSON MESSAGE RECEIVED: \n",
+                                json.dumps(msg_json, indent=2),
+                            )
+                        self.terminal_logger.info(
+                            "AMQReader creates new iu",
+                            destination=frame.headers["destination"],
+                            ID=msg_json["requestID"],
+                        )
+                    except Exception as e:
+                        # if message not parsable as a structured message (JSON), then put it as the IU's payload.
+                        # create the decorated IU (cannot use classical create_iu from AbstractModule)
+                        log_exception(module=self, exception=e)
+                        output_iu = self.target_iu_types[destination](
+                            creator=self,
+                            iuid=f"{hash(self)}:{self.iu_counter}",
+                            previous_iu=self._previous_iu,
+                            grounded_in=None,
+                            # payload=message,
                         )
                     self.terminal_logger.info(
-                        "AMQReader creates new iu",
-                        destination=frame.headers["destination"],
-                        ID=msg_json["requestID"],
+                        "create_iu",
+                        iuid=output_iu.iuid,
+                        previous_iu=(
+                            output_iu.previous_iu.iuid
+                            if output_iu.previous_iu is not None
+                            else None
+                        ),
+                        grounded_in=(
+                            output_iu.grounded_in.iuid
+                            if output_iu.grounded_in is not None
+                            else None
+                        ),
                     )
-                except Exception as e:
-                    # if message not parsable as a structured message (JSON), then put it as the IU's payload.
-                    # create the decorated IU (cannot use classical create_iu from AbstractModule)
-                    self.terminal_logger.error("error")
-                    print(e.with_traceback())
-                    output_iu = self.target_iu_types[destination](
-                        creator=self,
-                        iuid=f"{hash(self)}:{self.iu_counter}",
-                        previous_iu=self._previous_iu,
-                        grounded_in=None,
-                        # payload=message,
-                    )
-                self.terminal_logger.info(
-                    "create_iu",
-                    iuid=output_iu.iuid,
-                    previous_iu=(
-                        output_iu.previous_iu.iuid
-                        if output_iu.previous_iu is not None
-                        else None
-                    ),
-                    grounded_in=(
-                        output_iu.grounded_in.iuid
-                        if output_iu.grounded_in is not None
-                        else None
-                    ),
-                )
 
-                self.iu_counter += 1
-                self._previous_iu = output_iu
-                update_message = retico_core.UpdateMessage()
+                    self.iu_counter += 1
+                    self._previous_iu = output_iu
+                    update_message = retico_core.UpdateMessage()
 
-                if "update_type" not in frame.headers:
-                    # print("Incoming IU has no update_type!")
-                    update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
-                elif frame.headers["update_type"] == "UpdateType.ADD":
-                    update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
-                elif frame.headers["update_type"] == "UpdateType.REVOKE":
-                    update_message.add_iu(output_iu, retico_core.UpdateType.REVOKE)
-                elif frame.headers["update_type"] == "UpdateType.COMMIT":
-                    update_message.add_iu(output_iu, retico_core.UpdateType.COMMIT)
-                self.append(update_message)
+                    if "update_type" not in frame.headers:
+                        # print("Incoming IU has no update_type!")
+                        update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
+                    elif frame.headers["update_type"] == "UpdateType.ADD":
+                        update_message.add_iu(output_iu, retico_core.UpdateType.ADD)
+                    elif frame.headers["update_type"] == "UpdateType.REVOKE":
+                        update_message.add_iu(output_iu, retico_core.UpdateType.REVOKE)
+                    elif frame.headers["update_type"] == "UpdateType.COMMIT":
+                        update_message.add_iu(output_iu, retico_core.UpdateType.COMMIT)
+                    self.append(update_message)
+            except Exception as e:
+                log_exception(module=self, exception=e)
 
 
 class AMQWriter(retico_core.AbstractModule):
@@ -242,10 +261,24 @@ class AMQWriter(retico_core.AbstractModule):
 
         """
         super().__init__(**kwargs)
-        hosts = [(ip, port)]
-        self.conn = stomp.Connection(host_and_ports=hosts, auto_content_length=False)
-        self.conn.connect("admin", "admin", wait=True)
+        self.hosts = [(ip, port)]
         self.print = print
+        self.conn = None
+
+    def setup(self, log_folder=None, terminal_logger=None, file_logger=None):
+        super().setup(
+            log_folder=log_folder,
+            terminal_logger=terminal_logger,
+            file_logger=file_logger,
+        )
+        try:
+            self.conn = stomp.Connection(
+                host_and_ports=self.hosts, auto_content_length=False
+            )
+            self.conn.connect("admin", "admin", wait=True)
+        except stomp.exception.ConnectFailedException as e:
+            log_exception(module=self, exception=e)
+            raise e
 
     def process_update(self, update_message):
         """
