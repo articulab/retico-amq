@@ -13,6 +13,7 @@ from retico_core.log_utils import log_exception
 
 
 class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
+    """A Module producing a TextIU each n seconds"""
 
     @staticmethod
     def name():
@@ -63,6 +64,7 @@ class TestTextIUProducingModule(retico_core.abstract.AbstractProducingModule):
 
 
 class TestAudioIUProducingModule(retico_core.abstract.AbstractProducingModule):
+    """A Module producing a AudioIU each n seconds"""
 
     @staticmethod
     def name():
@@ -189,6 +191,7 @@ class TextAlignedAudioIU(retico_core.audio.AudioIU):
 
 
 class TestAudioTurnIUProducingModule(retico_core.abstract.AbstractProducingModule):
+    """A Module producing a TextAlignedAudioIU each n seconds"""
 
     @staticmethod
     def name():
@@ -316,6 +319,7 @@ class GestureIU(retico_core.IncrementalUnit):
 
 
 class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule):
+    """A Module producing a GestureIU each n seconds"""
 
     @staticmethod
     def name():
@@ -323,7 +327,7 @@ class TestGestureIUProducingModule(retico_core.abstract.AbstractProducingModule)
 
     @staticmethod
     def description():
-        return "A Module producing GestureIU each n seconds"
+        return "A Module producing a GestureIU each n seconds"
 
     @staticmethod
     def output_iu():

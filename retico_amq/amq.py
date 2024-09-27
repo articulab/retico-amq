@@ -62,6 +62,11 @@ class AMQIU(retico_core.IncrementalUnit):
 
 
 class AMQReader(retico_core.AbstractProducingModule):
+    """
+    Module providing a retico system with ActiveMQ message reception.
+    The module can subscribe to different ActiveMQ destinations, each will correspond to a desired IU type.
+    At each message reception from one of the destinations, the module transforms the ActiveMQ message to an IncrementalUnit of the corresponding IU type.
+    """
 
     @staticmethod
     def name():
@@ -69,7 +74,7 @@ class AMQReader(retico_core.AbstractProducingModule):
 
     @staticmethod
     def description():
-        return "A Module providing reading onto a ActiveMQ bus"
+        return "A Module providing a retico system with ActiveMQ message reception"
 
     @staticmethod
     def output_iu():
@@ -78,8 +83,10 @@ class AMQReader(retico_core.AbstractProducingModule):
     def __init__(self, ip, port, print=False, **kwargs):
         """Initializes the ActiveMQReader.
 
-        Args: topic(str): the topic/scope where the information will be read.
-
+        Args:
+            ip (str): the IP of the computer.
+            port (str): the port corresponding to ActiveMQ
+            print (bool): boolean that manages printing
         """
         super().__init__(**kwargs)
         self.hosts = [(ip, port)]
@@ -93,12 +100,8 @@ class AMQReader(retico_core.AbstractProducingModule):
         if self._tts_thread_active:
             time.sleep(0.1)
 
-    def setup(self, log_folder=None, terminal_logger=None, file_logger=None):
-        super().setup(
-            log_folder=log_folder,
-            terminal_logger=terminal_logger,
-            file_logger=file_logger,
-        )
+    def setup(self):
+        super().setup()
         try:
             self.conn = stomp.Connection(
                 host_and_ports=self.hosts, auto_content_length=False
@@ -109,7 +112,7 @@ class AMQReader(retico_core.AbstractProducingModule):
                 self.conn.subscribe(destination=destination, id=1, ack="auto")
         except stomp.exception.ConnectFailedException as e:
             log_exception(module=self, exception=e)
-            raise e
+            raise stomp.exception.ConnectFailedException from e
 
     def prepare_run(self):
         super().prepare_run()
@@ -124,6 +127,8 @@ class AMQReader(retico_core.AbstractProducingModule):
         self._tts_thread_active = False
 
     class Listener(stomp.ConnectionListener):
+        """Listener that triggers ANQReader's `on_message` function every time a message is unqueued in one of the subscribed destination."""
+
         def __init__(self, module):
             super().__init__()
             # in order to use methods of activeMQ we create its instance
@@ -139,9 +144,21 @@ class AMQReader(retico_core.AbstractProducingModule):
             self.module.on_message(frame)
 
     def add(self, destination, target_iu_type):
+        """Stores the destination to subscribe to and the corresponding desired IU type in `target_iu_type`.
+
+        Args:
+            destination (_type_): the ActiveMQ destination to subscribe to.
+            target_iu_type (dict): dictionary of all destination-IU type associations.
+        """
         self.target_iu_types[destination] = target_iu_type
 
     def on_message(self, frame):
+        """The function that is triggered every time a message (= `frame`)is unqueued in one of the subscribed destination.
+        The message is then processed an transformed into an IU of the corresponding type.
+
+        Args:
+            frame (stomp.frame): the received ActiveMQ message.
+        """
         # check if it doesn't throw exception ? in case some frame parameter is not printable
         self.terminal_logger.info(
             "AMQReader receives a message from ActiveMQ",
@@ -152,6 +169,11 @@ class AMQReader(retico_core.AbstractProducingModule):
         self.queue.append(frame)
 
     def run_process(self):
+        """Function that will run on a separate thread and process the ActiveMQ messages received, and previous append in the class parameter `queue`.
+
+        Returns:
+            _type_: _description_
+        """
         while self._tts_thread_active:
             try:
                 time.sleep(0.2)
@@ -237,6 +259,10 @@ class AMQReader(retico_core.AbstractProducingModule):
 
 
 class AMQWriter(retico_core.AbstractModule):
+    """
+    Module providing a retico system with ActiveMQ message sending.
+    The module will transform the AMQIU received into ActiveMQ messages, and send them to ActiveMQ following the AMQIU's `destination` and `headers` parameters.
+    """
 
     @staticmethod
     def name():
@@ -244,7 +270,7 @@ class AMQWriter(retico_core.AbstractModule):
 
     @staticmethod
     def description():
-        return "A Module providing writing onto a ActiveMQ bus"
+        return "A Module providing a retico system with ActiveMQ message sending."
 
     @staticmethod
     def output_iu():
@@ -257,20 +283,18 @@ class AMQWriter(retico_core.AbstractModule):
     def __init__(self, ip, port, print=False, **kwargs):
         """Initializes the ActiveMQWriter.
 
-        Args: topic(str): the topic/scope where the information will be read.
-
+        Args:
+            ip (str): the IP of the computer.
+            port (str): the port corresponding to ActiveMQ
+            print (bool): boolean that manages printing
         """
         super().__init__(**kwargs)
         self.hosts = [(ip, port)]
         self.print = print
         self.conn = None
 
-    def setup(self, log_folder=None, terminal_logger=None, file_logger=None):
-        super().setup(
-            log_folder=log_folder,
-            terminal_logger=terminal_logger,
-            file_logger=file_logger,
-        )
+    def setup(self):
+        super().setup()
         try:
             self.conn = stomp.Connection(
                 host_and_ports=self.hosts, auto_content_length=False
@@ -278,14 +302,15 @@ class AMQWriter(retico_core.AbstractModule):
             self.conn.connect("admin", "admin", wait=True)
         except stomp.exception.ConnectFailedException as e:
             log_exception(module=self, exception=e)
-            raise e
+            raise stomp.exception.ConnectFailedException from e
 
     def process_update(self, update_message):
         """
-        This assumes that the message is json formatted, then packages it as payload into an IU
+        The function will take all parameters from each decorated IU, and transform it into a json so that it can be sent to ActiveMQ.
+        Some IU parameters are blacklisted (`black_listed_keys`), they either can't be transformed into json, or are useless outside of the retico system.
         """
 
-        for amq_iu, ut in update_message:
+        for amq_iu, _ in update_message:
 
             # create a JSON from all decorated IU extracted information
             decorated_iu = amq_iu.get_deco_iu()
@@ -325,7 +350,6 @@ class AMQWriter(retico_core.AbstractModule):
             )
             if self.print:
                 print("JSON MESSAGE SENT: \n", body)
-            # print(body)
             self.conn.send(
                 body=body,
                 destination=amq_iu.destination,
@@ -337,6 +361,9 @@ class AMQWriter(retico_core.AbstractModule):
 
 
 class AMQBridge(retico_core.AbstractModule):
+    """Module providing a retico system with the capacity to transform any retico IU into an AMQIU.
+    A AMQIU enhance an IU with a `destination` and a `headers` parameters.
+    """
 
     @staticmethod
     def name():
@@ -355,18 +382,19 @@ class AMQBridge(retico_core.AbstractModule):
         return [IncrementalUnit]
 
     def __init__(self, headers, destination, **kwargs):
-        """Initializes the ActiveMQWriter.
+        """Initializes the AMQBridge.
 
-        Args: topic(str): the topic/scope where the information will be read.
-
+        Args:
+            headers (dict): the ActiveMQ headers to be sent with the message.
+            destination (str): the ActiveMQ destination to send the message to.
         """
         super().__init__(**kwargs)
         self.headers = headers
         self.destination = destination
 
     def process_update(self, update_message):
-        """
-        This assumes that the message is json formatted, then packages it as payload into an IU
+        """Transform an IU into an AMQIU.
+        For now : except the `final` IUs which are empty
         """
         um = retico_core.abstract.UpdateMessage()
 
